@@ -7,6 +7,8 @@
 #include "../queue/CShmQueueSingle.h"
 #include "../common/common.h"
 
+#include "../socket/CSocketMsgHead.h"
+
 
 
 class CDBEngine
@@ -23,7 +25,6 @@ public:
 private:
 	int handle(char * in, char * out);
 	int route(char * out, CShmQueueSingle * outq);
-
 
 	int handle_RequestUserInfo(char * in, char * out);
 };

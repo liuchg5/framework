@@ -30,10 +30,11 @@ void *thr_fn(void *argv)
     int fd;
     StMsgBuffer msgbuf;
     CMsgHead *phead = (CMsgHead *)msgbuf.buf;
+
     char buf[1024];
 
     // 打开阻塞模型的socket
-    fd = open_socket(((struct ST_thr_fn_arg *)argv)->addr, 10203);
+    fd = open_socket_cli(((struct ST_thr_fn_arg *)argv)->addr, 10203);
     if (fd == -1)
     {
         fprintf(stderr, "Err: open_socket() failed! \n");
@@ -41,6 +42,7 @@ void *thr_fn(void *argv)
     }
 
     phead->msglen = sizeof(CMsgHead) + sizeof(CMsgRequestLoginPara);
+    int llll = phead->msglen;
     phead->msgid = MSGID_REQUESTLOGIN; //16位无符号整型，消息ID
     phead->msgtype = Request;   //16位无符号整型，消息类型，当前主要有Requst、Response以及Notify三种类型
     phead->msgseq = 1234567890;     //32位无符号整型，消息序列号
@@ -52,6 +54,7 @@ void *thr_fn(void *argv)
     char index[10];
     static int tmp = 0;
 
+phead->encode();
 
     do
     {
@@ -63,7 +66,8 @@ void *thr_fn(void *argv)
         strcat(msgbuf.buf + sizeof(CMsgHead), index);
         strcpy(msgbuf.buf + sizeof(CMsgHead) + 64, "password");
 
-        ssize_t n = send(fd, msgbuf.buf, phead->msglen, 0);  // 被阻塞
+
+        ssize_t n = send(fd, msgbuf.buf, llll, 0);  // 被阻塞
         if (n < 0)
         {
             fprintf(stderr, "Err: socket: %d send() failed! \n", fd);
@@ -84,8 +88,9 @@ void *thr_fn(void *argv)
         }
         CMsgResponseLoginPara *poutpara =
             (CMsgResponseLoginPara *)(buf + sizeof(CMsgHead));
-
+poutpara->encode();
         fprintf(stdout, "Info: get username = %s \n", poutpara->m_stPlayerInfo.m_szUserName);
+        fprintf(stdout, "Info: get m_unWin = %d \n", poutpara->m_stPlayerInfo.m_unWin);
         //rtn = recv(fd, &tmp, 102, 0); //读取后丢弃
 
 

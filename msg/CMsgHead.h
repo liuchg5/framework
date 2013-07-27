@@ -6,6 +6,8 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "../common/common.h"
+
 #pragma pack(push) //保存对齐状态 
 #pragma pack(1)//设定为1字节对齐 
 
@@ -21,17 +23,9 @@ public:
 	uint16_t srcid;	//16位无符号整型，当客户端向游戏服务器发送消息时ScrID为SessionID
 	uint16_t dstid;	//16位无符号整型，当游戏服务器向客户端发送消息是DstID为SessionID
 
-	void print()
-	{
-		printf("msglen = %d\n", msglen);
-		printf("msgid = %d\n", msgid);
-		printf("msgtype = %d\n", msgtype);
-		printf("msgseq = %d\n", msgseq);
-		printf("srcfe = %d\n", srcfe);
-		printf("dstfe = %d\n", dstfe);
-		printf("srcid = %d\n", srcid);
-		printf("dstid = %d\n", dstid);
-	}
+	void print();
+
+	void encode();
 };
 
 

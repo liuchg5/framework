@@ -1,5 +1,9 @@
 #include "CSocketCli.h"
 
+#include "CSocketMsgHead.h"
+#include "../msg/CMsgHead.h"
+#include "../msg/CMsgPara.h"
+
 
 CSocketCli::CSocketCli()
 {

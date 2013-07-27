@@ -6,7 +6,7 @@
 #include <stdio.h>
 #include <string.h>
 
-
+#include "../common/common.h"
 
 #define Request             0
 #define Response            1
@@ -65,6 +65,7 @@ public:
     int buf2para(char *buf) ;
     int para2buf(char *buf) ;
     void print() ;
+    void encode();
 };
 
 class CMsgResponseLoginPara//: public CMsgPara
@@ -79,6 +80,7 @@ public:
     int buf2para(char *buf) ;
     int para2buf(char *buf) ;
     void print() ;
+    void encode();
 };
 
 #define MSGID_REQUESTUSERINFO     	0x1001

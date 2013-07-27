@@ -12,3 +12,7 @@ when close iptraf: 20000msg/sec, id < 5, 201connect
 
 [insrv, midsrv, outsrv, db_insrv, db_midsrv, ClientSR]
 100,000msg/sec, id < 5, 1connect, sleep 0, network is nearly 100%
+
+===== 2013-07-27 Night =====
+finish big endian and little endian
+about 18000msg/sec is bottleneck

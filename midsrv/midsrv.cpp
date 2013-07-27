@@ -1,8 +1,8 @@
 
-#include "../common/common.h"
+
 #include "../queue/CShmQueueSingle.h"
 #include "../engine/CGMEngine.h"
-
+#include "../common/common.h"
 
 int main(int argc, char const *argv[])
 {
@@ -30,7 +30,7 @@ int main(int argc, char const *argv[])
     db_inq.init();
     db_inq.clear();
 
-    CGMEngine eng;
+    CGMEngine eng(0, 1);//(int cliIsBigEndian, int srvIsBigEndian);
     eng.prepare(&inq, &outq, &db_inq, &db_outq);//(CShmQueueSingle * inQ, CShmQueueSingle * outQ, CShmQueueSingle * db_inQ, CShmQueueSingle * db_outQ);
     eng.run();
     

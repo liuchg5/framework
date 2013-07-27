@@ -6,9 +6,8 @@
 #include <sys/types.h>
 #include <unistd.h>
 #include <time.h>
+#include <stdint.h>
 
-#include "../msg/CMsgHead.h"
-#include "../msg/CMsgPara.h"
 
 // 设为非阻塞socket函数
 int setnonblocking(int sock) ;
@@ -37,10 +36,12 @@ unsigned int GetRandomInteger(int low, int up) ;
 // 打开测试用
 int test_socket_srv(const char *serv_addr, int port_number);
 
-// 封包  解包
-void enpack_index(char * buf, int index);
-void unpack_index(char * buf, int * pindex);
-void get_index(char * buf, int * pindex);
-void set_index(char * buf, int index);
+
+// 大小端问题
+void encode_int(int * v);
+void encode_short(short * v);
+void encode_int(uint32_t * vv);
+void encode_short(uint16_t * vv);
+
 #endif
 

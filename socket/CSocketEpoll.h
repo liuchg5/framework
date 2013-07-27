@@ -17,6 +17,12 @@
 #include "../queue/CShmQueueSingle.h"
 #include "../queue/CMemQueueSingle.h"
 #include "../common/common.h"
+
+#include "CSocketMsgHead.h"
+
+
+
+
 //------------------------------------------
 class CSocketInfo
 {
@@ -24,8 +30,9 @@ public:
 	int used;
 	int fd;
 	int writable;
-	int recv_n, send_n;
-	char * recv_buf, * send_buf;
+	int recv_n;
+	char * recv_buf;
+	char * recv_base; //base才是new后地址，buf是指预留len和index位置后的地址
 	
 	// recv_time, send_time; // 
 	
@@ -56,14 +63,18 @@ public:
 	struct epoll_event ev;
 	struct epoll_event * events;
 	int epfd;
-	int flag_inside; // if inside, then not enpack/unpack msg with index
+
+	int cliIsBigEndian; // 
+	int srvIsBigEndian;
 	
 	CSocketInfoList list;
 	CShmQueueSingle *outq;
 	CShmQueueSingle *inq;
-	CMemQueueSingle q;
+	CMemQueueSingle q1, q2;
+	int flag_q1;
+
 public:
-	CSocketEpoll(int epoll_Size, int epoll_Timeout, int Listenq, int flag_Inside);
+	CSocketEpoll(int epoll_Size, int epoll_Timeout, int Listenq, int clientIsBigEndian, int serverIsBigEndian);
 	~CSocketEpoll();
 	int prepare(const char * serv_addr, int port_num, CShmQueueSingle *poutq, CShmQueueSingle *pinq);
 	int run();
@@ -75,9 +86,8 @@ private:
     int handle_info_close(int index);
 	
 	int handle_send();
-	int handle_send_inq();
-    int handle_send_q();
-	
+	int handle_send_inq_tmpq(CShmQueueSingle *inQ, CMemQueueSingle *tmpQ);	
+	int handle_send_inq_tmpq(CMemQueueSingle *inQ, CMemQueueSingle *tmpQ);	
 };
 
 

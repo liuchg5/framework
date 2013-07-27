@@ -28,7 +28,10 @@ void CMsgRequestLoginPara::print()
 	printf("-----------------END------------------\n");
 }
 
+void CMsgRequestLoginPara::encode()
+{
 
+}
 
 
 
@@ -71,6 +74,17 @@ void CMsgResponseLoginPara::print()
 	printf("  m_unLose: %d \n", m_stPlayerInfo.m_unLose);
 	printf("  m_unRun: %d \n", m_stPlayerInfo.m_unRun);
 	printf("-----------------END------------------\n");
+}
+
+void CMsgResponseLoginPara::encode()
+{
+	::encode_int(&m_unUin);
+	encode_int(&m_unSessionID);
+	encode_int(&(m_stPlayerInfo.m_unUin));
+	encode_short(&(m_stPlayerInfo.m_unLevel));
+	encode_short(&(m_stPlayerInfo.m_unWin));
+	encode_short(&(m_stPlayerInfo.m_unLose));
+	encode_short(&(m_stPlayerInfo.m_unRun));
 }
 
 

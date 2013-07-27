@@ -2,35 +2,32 @@
 
 #include "CSocketEpoll.h"
 
+#include "../msg/CMsgHead.h"
+#include "../msg/CMsgPara.h"
+
 //------------------------------------------
 CSocketInfo::CSocketInfo()
 {
     used = 0; fd = -1; writable = 1;
-    recv_n = 0; send_n = 0;
-    recv_buf = new char[1024];
-    send_buf = new char[1024];
-    if (recv_buf == NULL || send_buf == NULL)
+    recv_n = 0;
+    recv_base = new char[1024];
+    if (recv_base == NULL)
     {
         fprintf(stderr, "Err: CSocketInfo::CSocketInfo()\n");
         fprintf(stderr, "Err: new failed !!!\n");
     }
-    memset(recv_buf, 0, 1024);
-    memset(send_buf, 0, 1024);
+    recv_buf = recv_base + sizeof(CSocketMsgHead);
+    memset(recv_base, 0, 1024);
 }
 CSocketInfo::~CSocketInfo()
 {
-    used = 0; fd = -1; writable = 1;
-    recv_n = 0; send_n = 0;
-    delete [] recv_buf;
-    delete [] send_buf;
-    recv_buf = NULL; send_buf = NULL;
+    delete [] recv_base;
 }
 void CSocketInfo::erase()
 {
     used = 0; fd = -1; writable = 1;
-    recv_n = 0; send_n = 0;
-    memset(recv_buf, 0, 1024);
-    memset(send_buf, 0, 1024);
+    recv_n = 0;
+    memset(recv_base, 0, 1024);
 }
 
 //------------------------------------------
@@ -71,7 +68,7 @@ void CSocketInfoList::erase(int index)
 //------------------------------------------
 //------------------------------------------
 //------------------------------------------
-CSocketEpoll::CSocketEpoll(int epoll_Size, int epoll_Timeout, int Listenq, int flag_Inside):list(epoll_Size)
+CSocketEpoll::CSocketEpoll(int epoll_Size, int epoll_Timeout, int Listenq, int clientIsBigEndian, int serverIsBigEndian): list(epoll_Size)
 {
     port_number = -1;
     epoll_size = epoll_Size + 1;
@@ -85,7 +82,8 @@ CSocketEpoll::CSocketEpoll(int epoll_Size, int epoll_Timeout, int Listenq, int f
         fprintf(stderr, "Err: errno = %d (%s) \n ", errno, strerror(errno));
     }
     epfd = 0;
-    flag_inside = flag_Inside;
+    cliIsBigEndian = clientIsBigEndian;
+    srvIsBigEndian = serverIsBigEndian;
 }
 
 CSocketEpoll::~CSocketEpoll()
@@ -93,15 +91,21 @@ CSocketEpoll::~CSocketEpoll()
     delete [] events;
 }
 
-int CSocketEpoll::prepare(const char * serv_addr, int port_num, CShmQueueSingle *poutq, CShmQueueSingle *pinq)
+int CSocketEpoll::prepare(const char *serv_addr, int port_num, CShmQueueSingle *poutq, CShmQueueSingle *pinq)
 {
     port_number = port_num;
     outq = poutq;
-	inq = pinq;
+    inq = pinq;
 
-	q.crt(1024 * 1024 * 1);
-    q.init();
-    q.clear();
+    q1.crt(1024 * 1024 * 1);
+    q1.init();
+    q1.clear();
+
+    q2.crt(1024 * 1024 * 1);
+    q2.init();
+    q2.clear();
+
+    flag_q1 = 1;
 
     int ret;
     // 创建epoll
@@ -307,13 +311,6 @@ int CSocketEpoll::handle_new_connect(int listenfd)
     return 0;
 
     // 不通知新连接，默认index就是session，但是close时需要通知
-    // set_MSGID_I2M_NEW_CONNECT(&tmpmsgbuf, index, connfd);
-    //     if (pqs->pushmsg(&tmpmsgbuf) <= 0)
-    //     {
-    //         fprintf(stderr, "Err: CSocketSrvEpoll new connect msg cannot push, queue full !!!!!!\n ");
-    //         return -1;
-    //     }
-    // } // end while ( accept() )
 }
 
 int CSocketEpoll::handle_recv(int index)
@@ -347,7 +344,8 @@ int CSocketEpoll::handle_recv(int index)
                 }
                 else
                 {
-                    fprintf(stdout, "Warn: recv() n < 0 but donot know why \n ");
+                    fprintf(stderr, "Err: recv() n < 0 but donot know why \n ");
+                    fprintf(stderr, "Err: errno = %d (%s) \n", errno, strerror(errno));
                     if (handle_close(index) != 0)
                     {
                         fprintf(stdout, "Err: handle_close() failed!!! \n ");
@@ -370,21 +368,17 @@ int CSocketEpoll::handle_recv(int index)
         if (psi->recv_n >= 4)  // 已经获取到msglen
         {
             int msglen = *(int *)psi->recv_buf;
+            if (cliIsBigEndian != srvIsBigEndian)
+                encode_int(&msglen);
             ssize_t n = recv(socketfd, psi->recv_buf + psi->recv_n, msglen - psi->recv_n, 0); // 保证读取的是一个msg
             if (n > 0)
             {
                 psi->recv_n += n;
                 if (psi->recv_n == msglen)  // 收取了一个完整msg
                 {
-                    // TODO 压入共享内存区
-                    // !!! need to convert !!!
-                    // if (!flag_inside)    // 只有对外使用才enpack!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-					   enpack_index(psi->recv_buf, index);
-                    // int *pi = (int *)(psi->recv_buf + psi->recv_n);
-                    // *pi = index;
-                    // pi = (int *)(psi->recv_buf);
-                    // *pi = *pi + sizeof(int);
-                    if (outq->push(psi->recv_buf) >= 0)
+                    CSocketMsgHead head(msglen + sizeof(CSocketMsgHead), index, 0);
+                    head.enpack(psi->recv_base);
+                    if (outq->push(psi->recv_base) >= 0)
                     {
                         psi->recv_n = 0;
                     }
@@ -432,9 +426,7 @@ int CSocketEpoll::handle_recv(int index)
                 }
                 return 0;
             }
-
         }  // if (prmsg->n >= 4)
-
     } // while (1)
 }
 int CSocketEpoll::handle_close(int index)
@@ -466,10 +458,9 @@ int CSocketEpoll::handle_close(int index)
 }
 int CSocketEpoll::handle_info_close(int index)
 {
-    char buf[2 * sizeof(int)];
-    int *pi = (int *)buf;
-    *pi++ = 2 * sizeof(int);
-    *pi = index;
+    char buf[sizeof(CSocketMsgHead)]; // 只有CSocketMsgHead表示关闭
+    CSocketMsgHead head(sizeof(CSocketMsgHead), index, 0);
+    head.enpack(buf);
     // TODO 压入共享内存区
     if (outq->push(buf) < 0)
     {
@@ -481,41 +472,52 @@ int CSocketEpoll::handle_info_close(int index)
 //------------------------------------------
 int CSocketEpoll::handle_send()
 {
-    handle_send_inq();
-    handle_send_q();
+    if (flag_q1 == 1)
+    {
+        flag_q1 = 0;
+        handle_send_inq_tmpq(inq, &q1);
+        handle_send_inq_tmpq(&q2, &q1);
+    }
+    else
+    {
+        flag_q1 = 1;
+        handle_send_inq_tmpq(inq, &q2);
+        handle_send_inq_tmpq(&q1, &q2);
+    }
     return 0;
 }
 
-int CSocketEpoll::handle_send_inq() //
+int CSocketEpoll::handle_send_inq_tmpq(CShmQueueSingle *inQ, CMemQueueSingle *tmpQ) //
 {
-    int index, socketfd;
-    char tmp[1024];
-    while (inq->pop(tmp) > 0)
+    char send_base[1024];
+    char *send_buf = send_base + sizeof(CSocketMsgHead);
+    CSocketMsgHead head;
+    while (inQ->pop(send_base) > 0)
     {
-        int *pi = (int *)tmp; // msglen
-        // if (!flag_inside)// !!!!!!!!!!!!!!!!!!!!!!
-            unpack_index(tmp, &index); // !!!!!!!!!!!!!!!!!!!!!!
-        // else
-        //     index = 1;  // !!!!!!!!!!!!!!!!!!!!!!
-        
+        head.unpack(send_base);
+        int len = head.len;
+        int index = head.index;
+        int sendPos = head.sendPos;
+
         if (list.pv[index].used != 1)
         {
             fprintf(stdout, "Err: CSocketEpoll::handle_send_inq()\n");
             fprintf(stdout, "Err: index[%d] is not used \n", index);
             continue;
         }
-        socketfd = list.pv[index].fd;
-        int n = send(socketfd, tmp, *pi, 0);
+        int socketfd = list.pv[index].fd;
+        int sendLen = len - sizeof(CSocketMsgHead) - sendPos;
+        if (sendPos != 0)
+            printf("1111");
+        int n = send(socketfd, send_buf + sendPos, sendLen, 0);
         if (n < 0)
         {
             if (errno == EINTR || errno == EWOULDBLOCK || errno == EAGAIN)   // 没有发送完
             {
-                // if (!flag_inside)//!!!!!!!!!!!!!!!!!!!!!!!
-                    enpack_index(tmp, index);
-
-                if (q.push(tmp) < 0)
+                printf("55ds55");
+                if (tmpQ->push(send_base) < 0)
                 {
-                    fprintf(stderr, "Err: q.push() is full !!!\n" );
+                    fprintf(stderr, "Err: tmpQ->push() is full !!!\n" );
                     return -1;
                 }
                 continue;//
@@ -536,61 +538,54 @@ int CSocketEpoll::handle_send_inq() //
             handle_close(index);
             continue;
         }
-        else if (n < *pi) // 只发送了一部分
+        else if (n < sendLen) //
         {
-            *pi = *pi - n;
-            // if (!flag_inside)//!!!!!!!!!!!!!!!!
-                enpack_index(tmp, index);
-            
-            // *(int *)(tmp + *pi) = index;
-            // *pi = *pi + sizeof(int);
-            if (q.push(tmp) < 0)
+            CSocketMsgHead head2(len, index, sendPos + n);
+            head2.enpack(send_base);
+            printf("5wef555");
+            if (tmpQ->push(send_base) < 0)
             {
                 fprintf(stderr, "Err: q.push() is full !!!\n" );
                 return -1;
             }
-			fprintf(stderr, "Test: inq send part of msg !!!\n" );
+            fprintf(stderr, "Test: inq send part of msg !!!\n" );
             continue;
         }
     }// end while()
     return 0;
 }
 
-int CSocketEpoll::handle_send_q() //
+int CSocketEpoll::handle_send_inq_tmpq(CMemQueueSingle *inQ, CMemQueueSingle *tmpQ) //
 {
-    
-
-    int index, socketfd;
-    char tmp[1024];
-    int cnt = 10;
-    while (q.pop(tmp) > 0 && cnt-- > 0)
+    char send_base[1024];
+    char *send_buf = send_base + sizeof(CSocketMsgHead);
+    CSocketMsgHead head;
+    while (inQ->pop(send_base) > 0)
     {
-        printf("CSocketEpoll::handle_send_q()\n");
+        head.unpack(send_base);
+        int len = head.len;
+        int index = head.index;
+        int sendPos = head.sendPos;
 
-        int *pi = (int *)tmp; // msglen
-        // if (!flag_inside)
-            unpack_index(tmp, &index); // !!!!!!!!!!!!!!!!!!!!!!
-        // else
-        //     index = 1;//!!!!!!!!!!!!!!!!!
-        
         if (list.pv[index].used != 1)
         {
             fprintf(stdout, "Err: CSocketEpoll::handle_send_inq()\n");
-            fprintf(stdout, "Err: index is not used \n");
+            fprintf(stdout, "Err: index[%d] is not used \n", index);
             continue;
         }
-        socketfd = list.pv[index].fd;
-        int n = send(socketfd, tmp, *pi, 0);
+        int socketfd = list.pv[index].fd;
+        int sendLen = len - sizeof(CSocketMsgHead) - sendPos;
+        if (sendPos != 0)
+            printf("22222");
+        int n = send(socketfd, send_buf + sendPos, sendLen, 0);
         if (n < 0)
         {
             if (errno == EINTR || errno == EWOULDBLOCK || errno == EAGAIN)   // 没有发送完
             {
-                // if (!flag_inside)
-                    enpack_index(tmp, index);
-
-                if (q.push(tmp) < 0)
+                printf("44444");
+                if (tmpQ->push(send_base) < 0)
                 {
-                    fprintf(stderr, "Err: q.push() is full !!!\n" );
+                    fprintf(stderr, "Err: tmpQ->push() is full !!!\n" );
                     return -1;
                 }
                 continue;//
@@ -611,14 +606,12 @@ int CSocketEpoll::handle_send_q() //
             handle_close(index);
             continue;
         }
-        else if (n < *pi) // 只发送了一部分
+        else if (n < sendLen) //
         {
-            *pi = *pi - n;
-            // if (!flag_inside)
-                enpack_index(tmp, index);
-            // *(int *)(tmp + *pi) = index;
-            // *pi = *pi + sizeof(int);
-            if (q.push(tmp) < 0)
+            CSocketMsgHead head2(len, index, sendPos + n);
+            head2.enpack(send_base);
+            printf("5555");
+            if (tmpQ->push(send_base) < 0)
             {
                 fprintf(stderr, "Err: q.push() is full !!!\n" );
                 return -1;

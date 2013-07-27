@@ -19,6 +19,7 @@
 #include "../common/common.h"
 #include "../common/CStatistics.h"
 
+// !!!只能用在CSocketEpoll的后端，而且大小端要一致
 class CSocketCli
 {
 public:

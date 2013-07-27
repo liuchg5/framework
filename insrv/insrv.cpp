@@ -1,11 +1,13 @@
 
-#include "../common/common.h"
+
 #include "../queue/CShmQueueSingle.h"
 #include "../socket/CSocketEpoll.h"
+#include "../common/common.h"
 
 int main(int argc, char const *argv[])
 {
-	printf("Befin insrv !!!\n");
+    printf("Befin insrv !!!\n");
+	printf("serverIsBigEndian == %d !!!\n", isBigEndian());
 	
 	CShmQueueSingle inq, outq;
 
@@ -19,7 +21,7 @@ int main(int argc, char const *argv[])
     inq.init();
     inq.clear();
 
-    CSocketEpoll epoll(8000, 0, 1000, 0);//(int epoll_Size, int epoll_Timeout, int Listenq, int flag_Inside)
+    CSocketEpoll epoll(8000, 0, 1000, 0, 1);//(int epoll_Size, int epoll_Timeout, int Listenq, int clientIsBigEndian, int serverIsBigEndian)
     epoll.prepare("0.0.0.0", 10203, &outq, &inq);//(const char * serv_addr, int port_num, CShmQueueSingle *poutq, CShmQueueSingle *pinq);
     epoll.run();
 	
