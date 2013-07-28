@@ -21,7 +21,7 @@ int main(int argc, char const *argv[])
     inq.init();
     inq.clear();
 
-    CSocketEpoll epoll(8000, 0, 1000, 0, 1);//(int epoll_Size, int epoll_Timeout, int Listenq, int clientIsBigEndian, int serverIsBigEndian)
+    CSocketEpoll epoll(8000, 0, 1000, 0, 1, 1);//(int epoll_Size, int epoll_Timeout, int Listenq, int clientIsBigEndian, int serverIsBigEndian)
     epoll.prepare("0.0.0.0", 10203, &outq, &inq);//(const char * serv_addr, int port_num, CShmQueueSingle *poutq, CShmQueueSingle *pinq);
     epoll.run();
 	

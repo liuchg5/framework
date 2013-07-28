@@ -27,6 +27,7 @@ private:
 	int route(char * out, CShmQueueSingle * outq);
 
 	int handle_RequestUserInfo(char * in, char * out);
+	int handle_pack(char * in, char * out);
 };
 
 #endif

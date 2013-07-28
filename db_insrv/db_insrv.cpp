@@ -19,7 +19,7 @@ int main(int argc, char const *argv[])
     inq.init();
     inq.clear();
 
-    CSocketEpoll epoll(8, 0, 4, 1, 1);//(int epoll_Size, int epoll_Timeout, int Listenq)
+    CSocketEpoll epoll(8, 0, 4, 1, 1, 0);//(int epoll_Size, int epoll_Timeout, int Listenq)
     epoll.prepare("192.168.234.128", 12345, &outq, &inq);//(const char * serv_addr, int port_num, CShmQueueSingle *poutq, CShmQueueSingle *pinq);
     epoll.run();
 

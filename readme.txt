@@ -16,3 +16,10 @@ when close iptraf: 20000msg/sec, id < 5, 201connect
 ===== 2013-07-27 Night =====
 finish big endian and little endian
 about 18000msg/sec is bottleneck
+===== 2013-07-28 Day =====
+add timeout check
+about 18000msg/sec is bottleneck
+4000connect, 500ms, 6000msg/sec is bottleneck, id < 5
+if not timeout check:
+7000conncet, 500ms, 11000msg/sec is bottleneck, id < 5
+heap has problem, it doesnot work. quick sort is ok.

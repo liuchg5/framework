@@ -32,7 +32,10 @@ private:
 	int route(char * out, CShmQueueSingle * outq, CShmQueueSingle * db_outq);
 
 	int handle_RequestLogin(char * in, char * out);
+	int handle_RequestLogin_origin(char * in, char * out, int * len, int index);
 	int handle_RequestUserInfo(char * in, char * out);
+	int handle_RequestUserInfo_origin(char * in, char * out, int * len, int index);
+
 
 
 	 // int handle_debug(StMsgBuffer * pinmsg, CShmQueueMulti * pshmqm);  //debug

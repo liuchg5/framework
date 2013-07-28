@@ -28,8 +28,8 @@ int CDBEngine::run()
         {
             if (head.is_close_msg(in))
             {
-                fprintf(stderr, "Err: CDBEngine::run()\n");
-                fprintf(stderr, "Err: is_close_msg()\n");
+                fprintf(stderr, "Warn: CDBEngine::run()\n");
+                fprintf(stderr, "Warn: is_close_msg()\n");
                 continue;
             }
             handle(in, out);
@@ -64,15 +64,8 @@ int CDBEngine::handle(char *in, char *out)
 
 int CDBEngine::handle_RequestUserInfo(char *in, char *out)
 {
-    CSocketMsgHead head1, head2;
-    head1.unpack(in);
-    head2.unpack(in + sizeof(CSocketMsgHead));//!!!!!!!!!!!!!!!!!这里要解开两层的包，来取得最初的index
-
-
-
-    CMsgHead *pinhead = (CMsgHead *)(in + 2 * sizeof(CSocketMsgHead));
+    CMsgHead *pinhead = (CMsgHead *)(in + 2 * sizeof(CSocketMsgHead)); // 两次封包
     CMsgHead *pouthead = (CMsgHead *)(out + 2 * sizeof(CSocketMsgHead));
-    // phead->print(); // debug
 
     CRequestUserInfoPara *pinpara =
         (CRequestUserInfoPara *)((char *)pinhead + sizeof(CMsgHead)); //char        m_szUserName[64];
@@ -101,16 +94,27 @@ int CDBEngine::handle_RequestUserInfo(char *in, char *out)
 
     // printf("sendmsg srcid = %d\n", phead->srcid);
 
+    handle_pack(in, out);
+
+    return 0;
+}
+
+int CDBEngine::handle_pack(char * in, char * out)
+{
+    CMsgHead *pouthead = (CMsgHead *)(out + 2 * sizeof(CSocketMsgHead));
+
+    CSocketMsgHead head1, head2;
+    head1.unpack(in);
+    head2.unpack(in + sizeof(CSocketMsgHead));//!!!!!!!!!!!!!!!!!这里要解开两层的包，来取得最初的index
+
     head2.len = pouthead->msglen + sizeof(CSocketMsgHead);
     head2.sendPos = 0;//!!!!!!!!!!!!!!!!!这里要解开两层的包，来取得最初的index
     head2.enpack(out + sizeof(CSocketMsgHead));
     head1.len = head2.len + sizeof(CSocketMsgHead);
     head1.sendPos = 0;
     head1.enpack(out);
-
     return 0;
 }
-
 
 int CDBEngine::route(char *out, CShmQueueSingle *outq)
 {
@@ -118,10 +122,10 @@ int CDBEngine::route(char *out, CShmQueueSingle *outq)
 
     switch (phead->dstfe)
     {
-    case FE_CLIENT:
-        fprintf(stderr, "Err:CDBEngine route() FE_CLIENT !!\n");
-        return -1;
-        break;
+    // case FE_CLIENT:
+    //     fprintf(stderr, "Err:CDBEngine route() FE_CLIENT !!\n");
+    //     return -1;
+    //     break;
 
     case FE_GAMESVRD:
         if (outq->push(out) < 0)

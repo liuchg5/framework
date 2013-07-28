@@ -33,8 +33,8 @@ int CGMEngine::run()
 		{
             if (head.is_close_msg(in))
             {
-                fprintf(stderr, "Err: CGMEngine::run()\n");
-                fprintf(stderr, "Err: is_close_msg()\n");
+                fprintf(stderr, "Warn: CGMEngine::run()\n");
+                fprintf(stderr, "Warn: is_close_msg()\n");
                 continue;
             }
 			handle_client(in, out);
@@ -120,13 +120,23 @@ int CGMEngine::route(char * out, CShmQueueSingle * outq, CShmQueueSingle * db_ou
 	return 0;
 }
 
+
 int CGMEngine::handle_RequestLogin(char * in, char * out)
 {
     CSocketMsgHead head;
     head.unpack(in);
-
-	int index = head.index;
 	
+    int len;
+    handle_RequestLogin_origin(in, out, &len, head.index);
+ 	
+    head.len = len + sizeof(CSocketMsgHead);
+    head.sendPos = 0;
+    head.enpack(out);
+
+    return 0;
+}
+int CGMEngine::handle_RequestLogin_origin(char * in, char * out, int *len, int index)
+{
     CMsgHead *pinhead = (CMsgHead *)(in + sizeof(CSocketMsgHead));// 1次封包
     CMsgHead *pouthead = (CMsgHead *)(out + sizeof(CSocketMsgHead));// 1次封包
 
@@ -135,7 +145,7 @@ int CGMEngine::handle_RequestLogin(char * in, char * out)
     CRequestUserInfoPara *poutpara =
         (CRequestUserInfoPara *)((char *)pouthead + sizeof(CMsgHead));
 
-    if (cliIsBigEndian != srvIsBigEndian)
+    if (cliIsBigEndian != srvIsBigEndian) 
     {
         pinhead->encode();
         pinpara->encode();
@@ -143,7 +153,7 @@ int CGMEngine::handle_RequestLogin(char * in, char * out)
 
     strcpy(poutpara->m_szUserName, pinpara->username);
 
-    pouthead->msglen = sizeof(CMsgHead) + sizeof(CRequestUserInfoPara);
+    *len = pouthead->msglen = sizeof(CMsgHead) + sizeof(CRequestUserInfoPara);
     pouthead->msgid = MSGID_REQUESTUSERINFO; //16位无符号整型，消息ID
     pouthead->msgtype = Request;   //16位无符号整型，消息类型，当前主要有Request、Response以及Notify三种类型
     pouthead->msgseq = 1234567890;     //32位无符号整型，消息序列号
@@ -151,10 +161,6 @@ int CGMEngine::handle_RequestLogin(char * in, char * out)
     pouthead->dstfe = FE_DBSVRD;     //8位无符号整型，消息接收者类型 同上
     pouthead->srcid = index;   //16位无符号整型，当客户端向游戏服务器发送消息时ScrID为SessionID
     pouthead->dstid = 0;   //16位无符号整型，当游戏服务器向客户端发送消息是DstID为SessionID
-	
-    head.len = pouthead->msglen + sizeof(CSocketMsgHead);
-    head.sendPos = 0;
-    head.enpack(out);
 
     return 0;
 }
@@ -165,8 +171,17 @@ int CGMEngine::handle_RequestUserInfo(char * in, char * out)
     CSocketMsgHead head;
     head.unpack(in);
 
-    int index = head.index;
+    int len;
+    handle_RequestUserInfo_origin(in, out, &len, head.index);
+ 
+	head.len = len + sizeof(CSocketMsgHead);
+    head.sendPos = 0;
+    head.enpack(out);
 
+    return 0;
+}
+int CGMEngine::handle_RequestUserInfo_origin(char * in, char * out, int *len, int index)
+{
     CMsgHead *pinhead = (CMsgHead *)(in + sizeof(CSocketMsgHead));// 1次封包
     CMsgHead *pouthead = (CMsgHead *)(out + sizeof(CSocketMsgHead));// 1次封包
 
@@ -180,8 +195,7 @@ int CGMEngine::handle_RequestUserInfo(char * in, char * out)
     poutpara->m_bResultID = 0;
     memcpy(&poutpara->m_stPlayerInfo, &pinpara->m_stPlayerInfo, sizeof(m_stPlayerInfo));
 
-    pouthead->msglen = sizeof(CMsgHead) + sizeof(CMsgResponseLoginPara);
-    // printf("phead->msglen = %d\n", phead->msglen);
+    *len = pouthead->msglen = sizeof(CMsgHead) + sizeof(CMsgResponseLoginPara);
     pouthead->msgid = MSGID_REQUESTLOGIN; //16位无符号整型，消息ID
     pouthead->msgtype = Response;   //16位无符号整型，消息类型，当前主要有Requst、Response以及Notify三种类型
     pouthead->msgseq = 1234567890;     //32位无符号整型，消息序列号
@@ -189,13 +203,6 @@ int CGMEngine::handle_RequestUserInfo(char * in, char * out)
     pouthead->dstfe = FE_CLIENT;     //8位无符号整型，消息接收者类型 同上
     pouthead->srcid = index;   //16位无符号整型，当客户端向游戏服务器发送消息时ScrID为SessionID
     pouthead->dstid = 0;   //16位无符号整型，当游戏服务器向客户端发送消息是DstID为SessionID
-	
-    
-
-	head.len = pouthead->msglen + sizeof(CSocketMsgHead);
-    head.sendPos = 0;
-    head.enpack(out);
-
 
     if (cliIsBigEndian != srvIsBigEndian)
     {
@@ -205,7 +212,6 @@ int CGMEngine::handle_RequestUserInfo(char * in, char * out)
 
     return 0;
 }
-
 
 
 

@@ -20,38 +20,15 @@
 
 #include "CSocketMsgHead.h"
 
+#include "CSocketInfo.h"
+
+#include "CMinHeap.h"
+#include "CQuickSort.h"
 
 
 
-//------------------------------------------
-class CSocketInfo
-{
-public:
-	int used;
-	int fd;
-	int writable;
-	int recv_n;
-	char * recv_buf;
-	char * recv_base; //base才是new后地址，buf是指预留len和index位置后的地址
-	
-	// recv_time, send_time; // 
-	
-	CSocketInfo();
-	~CSocketInfo();
-	void erase();
-};
-//------------------------------------------
-class CSocketInfoList
-{
-public:
-	CSocketInfo * pv;
-	int size;
-public:	
-	CSocketInfoList(int Size);
-	~CSocketInfoList();
-	int find_idle(int * pindex);
-	void erase(int index);
-};
+
+
 //------------------------------------------
 class CSocketEpoll
 {
@@ -73,8 +50,13 @@ public:
 	CMemQueueSingle q1, q2;
 	int flag_q1;
 
+	struct timeval now_tm;
+	CMinHeap heap;
+	// CQuickSort qs;
+	int flag_timeout;
+
 public:
-	CSocketEpoll(int epoll_Size, int epoll_Timeout, int Listenq, int clientIsBigEndian, int serverIsBigEndian);
+	CSocketEpoll(int epoll_Size, int epoll_Timeout, int Listenq, int clientIsBigEndian, int serverIsBigEndian, int flag_timeout);
 	~CSocketEpoll();
 	int prepare(const char * serv_addr, int port_num, CShmQueueSingle *poutq, CShmQueueSingle *pinq);
 	int run();
@@ -88,6 +70,8 @@ private:
 	int handle_send();
 	int handle_send_inq_tmpq(CShmQueueSingle *inQ, CMemQueueSingle *tmpQ);	
 	int handle_send_inq_tmpq(CMemQueueSingle *inQ, CMemQueueSingle *tmpQ);	
+
+	int handle_timeout();// new connect/send/write=>tm=now_tm; close=>???used???; timeout=>cal tm_sec
 };
 
 

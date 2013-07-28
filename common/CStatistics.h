@@ -43,21 +43,31 @@ public:
         if (flag == 0)
             return -1;
 
+
+
         if (status == 1)
         {
             l_count++;
+
+
+            static int ccc = 100;
+            while (ccc-- > 0)
+                return 1;
+            ccc = 100;
+
+
             // if (l_count % 200 == 0) // for performance
             // {
-                gettimeofday(&st_end, NULL);
-                long timeuse = 1000000 * ( st_end.tv_sec - st_start.tv_sec ) + st_end.tv_usec - st_start.tv_usec;
-                if (timeuse >= l_interval)  // 到了时间间隔
-                {
-                    *pval = l_count;
-                    *ptimeuse = timeuse;
-                    l_count = 1;
-                    gettimeofday(&st_start, NULL);
-                    return 0; //到了时间间隔
-                }
+            gettimeofday(&st_end, NULL);
+            long timeuse = 1000000 * ( st_end.tv_sec - st_start.tv_sec ) + st_end.tv_usec - st_start.tv_usec;
+            if (timeuse >= l_interval)  // 到了时间间隔
+            {
+                *pval = l_count;
+                *ptimeuse = timeuse;
+                l_count = 1;
+                gettimeofday(&st_start, NULL);
+                return 0; //到了时间间隔
+            }
             // }
             return 1;
         }
@@ -81,11 +91,11 @@ public:
         if (rtn == 0)
         {
             fprintf(stdout, "Statistics: { %s } [%ld] Per seconds (%ld)  \n",
-                    str, lval/5, (ltimeuse / 1000) );
+                    str, lval / 5, (ltimeuse / 1000) );
         }
     }
-	
-	
+
+
 
 
 
