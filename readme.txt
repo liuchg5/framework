@@ -23,3 +23,11 @@ about 18000msg/sec is bottleneck
 if not timeout check:
 7000conncet, 500ms, 11000msg/sec is bottleneck, id < 5
 heap has problem, it doesnot work. quick sort is ok.
+
+===== 2013-07-29 Night =====
+timeout improve: 
+1. using flag to make less amout to qsort
+2. 1s to timeout() to reduse cpu cost
+the performace is beatiful:
+6000connect, 500ms, 10000msg/sec is bottleneck, id < 10
+7000connect, 500ms, 11000msg/sec is bootleneck, id = 0

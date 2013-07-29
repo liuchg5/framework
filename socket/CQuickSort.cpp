@@ -31,24 +31,28 @@ void CQuickSort::insert(int index)
     a[n++] = index;
 }
 
-void CQuickSort::del(int a_index)//数组a的下标
+void CQuickSort::clear()//
 {
-    if (a_index == n - 1)//最后一个元素
-    {
-        n--;
-    }
-    else
-    {
-        for (int i = a_index; i < n - 1; i++)
-        {
-            a[i] = a[i + 1];
-        }
-        n--;
-    }
+    n = 0;
 }
 
-void CQuickSort::sort()
+void CQuickSort::build_sort(struct timeval *now)
 {
+    // 遍历激活的fd，查看是否已经更新过，如果是更新过就不必排序
+    for (int i = 0; i < list->active_index_n; ++i)
+    {
+        int index = list->active_index[i];
+        CSocketInfo *psi = list->pv + index;
+        if (psi->tm_is_update)
+        {
+            psi->tm_is_update = 0;
+            continue;
+        }
+        psi->cal_tm_sec(now);
+        // psi->tm_sec = now_tm->tv_sec - psi->tm.tv_sec;
+        insert(index);
+    }
+
     qsort(a, 0, n - 1);
 }
 

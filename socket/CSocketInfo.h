@@ -28,10 +28,16 @@ public:
 	
 	struct timeval tm; // 超时
 	int tm_sec;
+	int tm_is_update;
 	
 	CSocketInfo();
 	~CSocketInfo();
 	void erase();
+	void update_tm(struct timeval * now);
+	void cal_tm_sec(struct timeval * now)
+	{
+		tm_sec = now->tv_sec - tm.tv_sec;
+	}
 };
 //------------------------------------------
 class CSocketInfoList
@@ -39,6 +45,9 @@ class CSocketInfoList
 public:
 	CSocketInfo * pv;
 	int size;
+
+	int * active_index;
+	int active_index_n;
 public:	
 	CSocketInfoList(int Size);
 	~CSocketInfoList();

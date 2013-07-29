@@ -9,7 +9,7 @@
 //------------------------------------------
 //------------------------------------------
 //------------------------------------------
-CSocketEpoll::CSocketEpoll(int epoll_Size, int epoll_Timeout, int Listenq, int clientIsBigEndian, int serverIsBigEndian, int flag_timeout): list(epoll_Size), heap(epoll_Size, &list)//qs(epoll_Size, &list)
+CSocketEpoll::CSocketEpoll(int epoll_Size, int epoll_Timeout, int Listenq, int clientIsBigEndian, int serverIsBigEndian, int flag_timeout): list(epoll_Size), qs(epoll_Size, &list)//heap(epoll_Size, &list)//
 {
     port_number = -1;
     epoll_size = epoll_Size + 1;
@@ -241,9 +241,10 @@ int CSocketEpoll::handle_new_connect(int listenfd)
     list.pv[tmp].fd = connfd;
 
     // 超时处理
-    memcpy(&(list.pv[tmp].tm), &now_tm, sizeof(struct timeval));
+    // memcpy(&(list.pv[tmp].tm), &now_tm, sizeof(struct timeval));
     // qs.insert(tmp); // insert index
-    heap.insert_just(tmp);
+    // // heap.insert_just(tmp);
+    list.pv[tmp].update_tm(&now_tm);
 
     // 注册新的连接
     ev.data.u32 = tmp; // 找到空闲的socketinfo
@@ -276,7 +277,7 @@ int CSocketEpoll::handle_recv(int index)
             {
                 psi->recv_n += n;
                 // 超时处理
-                memcpy(&(psi->tm), &now_tm, sizeof(struct timeval));
+                psi->update_tm(&now_tm);
             }
             else if (n < 0)
             {
@@ -326,7 +327,7 @@ int CSocketEpoll::handle_recv(int index)
             if (n > 0)
             {
                 // 超时处理
-                memcpy(&(psi->tm), &now_tm, sizeof(struct timeval));
+                psi->update_tm(&now_tm);
 
                 psi->recv_n += n;
                 if (psi->recv_n == msglen)  // 收取了一个完整msg
@@ -389,6 +390,9 @@ int CSocketEpoll::handle_close(int index)
     CSocketInfo *psi = list.pv + index;
     int socketfd = psi->fd;
 
+    fprintf(stderr, "Warn:CSocketEpoll::handle_close()\n");
+    fprintf(stderr, "Warn:  index = %d, fd = %d \n", index, socketfd);
+
     ev.data.u32 = index; // 找到空闲的socketinfo
     ev.events = EPOLLIN | EPOLLOUT | EPOLLET;
     if (epoll_ctl(epfd, EPOLL_CTL_DEL, socketfd, &ev) < 0)
@@ -400,7 +404,7 @@ int CSocketEpoll::handle_close(int index)
     }
 
     close(socketfd);
-    list.pv[index].erase();
+    list.erase(index);
 
     // 超时处理
     // qs.del(index);//统一根据used来处理，由于超时还调用这里关闭，所以不处理超时这里
@@ -484,7 +488,8 @@ int CSocketEpoll::handle_send_inq_tmpq(CShmQueueSingle *inQ, CMemQueueSingle *tm
             {
                 fprintf(stderr, "Err: CSocketEpoll::handle_send_inq() \n");
                 fprintf(stderr, "Err: errno = %d (%s) \n ", errno, strerror(errno));
-                handle_close(index);
+                if (handle_close(index) != 0)
+                    return -1;
                 continue;
             }
         }
@@ -493,13 +498,14 @@ int CSocketEpoll::handle_send_inq_tmpq(CShmQueueSingle *inQ, CMemQueueSingle *tm
             fprintf(stderr, "Err: CSocketEpoll::handle_send_inq() \n");
             fprintf(stderr, "Err: send() n == 0 \n");
             fprintf(stderr, "Err: errno = %d (%s) \n ", errno, strerror(errno));
-            handle_close(index);
+            if (handle_close(index) != 0)
+                return -1;
             continue;
         }
         else // n > 0
         {
             // 超时处理
-            memcpy(&(list.pv[index].tm), &now_tm, sizeof(struct timeval));
+            list.pv[index].update_tm(&now_tm);
 
             if (n < sendLen )
             {
@@ -558,7 +564,8 @@ int CSocketEpoll::handle_send_inq_tmpq(CMemQueueSingle *inQ, CMemQueueSingle *tm
             {
                 fprintf(stderr, "Err: CSocketEpoll::handle_send_inq() \n");
                 fprintf(stderr, "Err: errno = %d (%s) \n ", errno, strerror(errno));
-                handle_close(index);
+                if (handle_close(index) != 0)
+                    return -1;
                 continue;
             }
         }
@@ -567,13 +574,14 @@ int CSocketEpoll::handle_send_inq_tmpq(CMemQueueSingle *inQ, CMemQueueSingle *tm
             fprintf(stderr, "Err: CSocketEpoll::handle_send_inq() \n");
             fprintf(stderr, "Err: send() n == 0 \n");
             fprintf(stderr, "Err: errno = %d (%s) \n ", errno, strerror(errno));
-            handle_close(index);
+            if (handle_close(index) != 0)
+                return -1;
             continue;
         }
         else  // n > 0
         {
             // 超时处理
-            memcpy(&(list.pv[index].tm), &now_tm, sizeof(struct timeval));
+            list.pv[index].update_tm(&now_tm);
 
             if (n < sendLen)
             {
@@ -594,102 +602,106 @@ int CSocketEpoll::handle_send_inq_tmpq(CMemQueueSingle *inQ, CMemQueueSingle *tm
 }
 
 //qs版本
+int CSocketEpoll::handle_timeout()
+{
+    // static int cnt = 200;
+    // while (cnt-- > 0)
+    //     return 0;
+    // cnt = 200;
+
+    static int iiflag = 1;
+    static struct timeval t;
+    if (iiflag == 1)
+    {
+        iiflag = 0;
+        gettimeofday(&t, NULL);
+    }
+    if (now_tm.tv_sec - t.tv_sec < 1) // 3s 统计一次
+        return 0;
+    gettimeofday(&t, NULL);
+
+
+    int index;
+    CSocketInfo *psi;
+
+    // 根据tm_sec对qs排序，得到递增数组
+    qs.build_sort(&now_tm);
+
+
+    if (qs.n)
+        printf("build_sort() n = %d\n", qs.n);
+    // 从数组尾部关闭那些超时的fd
+    int i = qs.n - 1;
+    while (i >= 0)
+    {
+        index = qs.a[i--];
+        psi = &(list.pv[index]);
+        if (psi->tm_sec > 10)  // 10s
+        {
+            fprintf(stderr, "Warn: index = %d  fd = %d is timeout(10s) !!!\n", index, psi->fd);
+            if (handle_close(index) != 0)
+            {
+                fprintf(stderr, "CSocketEpoll::handle_timeout()\n");
+                fprintf(stderr, "  handle_close(index) != 0\n");
+                return -1;
+            }
+        }
+        else
+        {
+            break;
+        }
+        
+    }
+    qs.clear();
+    
+
+    return 0;
+}
+
+//heap版本
 // int CSocketEpoll::handle_timeout()
 // {
-//     static int cnt = 200;
+//     static int cnt = 2000;
 //     while (cnt-- > 0)
 //         return 0;
-//     cnt = 200;
+//     cnt = 2000;
 
 //     int index;
 //     CSocketInfo *psi;
-//     // 遍历当前qs中的fd，如果是已经关闭的则删除，不是则计算tm_sec
-//     for (int i=0; i<qs.n; i++)
+
+//     for (int i = 0; i < heap.n; i++)
 //     {
-//         index = qs.a[i];
+//         index = heap.array[i];
 //         psi = &(list.pv[index]);
 //         if (psi->used == 0) // 已经关闭
 //         {
-//             qs.del(i);
+//             heap.del_just(i);
 //             i--;
 //         }
 //         else
 //         {
 //             psi->tm_sec = now_tm.tv_sec - psi->tm.tv_sec;
+//             printf("psi->tm_sec = %d\n", psi->tm_sec);
 //         }
 //     }
-
 //     // 根据tm_sec对qs排序，得到递增数组
-//     qs.sort();
-
+//     heap.build();
 
 //     // 从数组尾部关闭那些超时的fd
-//     int i = qs.n - 1;
-//     while (i >= 0)
+//     index = heap.array[0];
+//     printf("heap.n = %d \n", heap.n);
+//     printf("heap.array[0] = %d \n", index);
+//     printf("heap.get_timeout_cnt(index) = %d \n", heap.get_timeout_cnt(index));
+//     while (heap.get_timeout_cnt(index) > 10)
 //     {
-//         index = qs.a[i];
 //         psi = &(list.pv[index]);
-//         if (qs.get_tm_sec(index) > 10)  // 10s
-//         {
-//             fprintf(stderr, "Warn: fd = %d is timeout(10s) !!!\n", psi->fd);
-//             handle_close(index);
-//             qs.del(i);
-//         }
-//         else
-//         {
-//             break;
-//         }
-//         i--;
+//         fprintf(stderr, "Warn: fd = %d is timeout(10s) !!!\n", psi->fd);
+//         handle_close(index);
+//         heap.swap(0, heap.n - 1);
+//         heap.fixdown(heap.array, 0, heap.n - 1);
+//         heap.del_just(heap.n - 1);
+//         index = heap.array[0];
 //     }
-    
 
 //     return 0;
 // }
-
-//heap版本
-int CSocketEpoll::handle_timeout()
-{
-    static int cnt = 2000;
-    while (cnt-- > 0)
-        return 0;
-    cnt = 2000;
-
-    int index;
-    CSocketInfo *psi;
-
-    for (int i = 0; i < heap.n; i++)
-    {
-        index = heap.array[i];
-        psi = &(list.pv[index]);
-        if (psi->used == 0) // 已经关闭
-        {
-            heap.del_just(i);
-            i--;
-        }
-        else
-        {
-            psi->tm_sec = now_tm.tv_sec - psi->tm.tv_sec;
-            printf("psi->tm_sec = %d\n", psi->tm_sec);
-        }
-    }
-    // 根据tm_sec对qs排序，得到递增数组
-    heap.build();
-
-    // 从数组尾部关闭那些超时的fd
-    index = heap.array[0];
-    printf("heap.n = %d \n", heap.n);
-    printf("heap.array[0] = %d \n", index);
-    printf("heap.get_timeout_cnt(index) = %d \n", heap.get_timeout_cnt(index));
-    while (heap.get_timeout_cnt(index) > 10)
-    {
-        psi = &(list.pv[index]);
-        fprintf(stderr, "Warn: fd = %d is timeout(10s) !!!\n", psi->fd);
-        handle_close(index);
-        heap.swap(0, heap.n - 1);
-        heap.fixdown(heap.array, 0, heap.n - 1);
-        heap.del_just(heap.n - 1);
-        index = heap.array[0];
-    }
-
-    return 0;
-}

@@ -51,8 +51,8 @@ public:
 	int flag_q1;
 
 	struct timeval now_tm;
-	CMinHeap heap;
-	// CQuickSort qs;
+	// CMinHeap heap;
+	CQuickSort qs;
 	int flag_timeout;
 
 public:

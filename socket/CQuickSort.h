@@ -6,7 +6,7 @@
 class CQuickSort
 {
 public:
-	int *a;
+	int *a; // a数组用来排序
 	int size, n;
 
 	CSocketInfoList * const list;
@@ -14,11 +14,13 @@ public:
 	CQuickSort(int isize, CSocketInfoList * plist);
 	~CQuickSort();
 
+	void clear();
+	void build_sort(struct timeval * now);
+
+
+
+
 	void insert(int index);//EPOLL的index,session
-	void del(int a_index);//数组a的下标
-	void sort();
-
-
 	
 	void qsort(int v[], int L, int R);
 
